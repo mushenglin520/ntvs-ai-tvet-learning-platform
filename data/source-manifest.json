@@ -1,0 +1,24 @@
+{
+  "checkedAt": "2026-11-11T23:00:00+08:00",
+  "officialPage": "https://web1.tcte.edu.tw/EXAM/115_4y/",
+  "group": "02動力機械群",
+  "subject": "專業科目（一）",
+  "scope": ["應用力學", "引擎原理", "底盤原理"],
+  "files": [
+    {
+      "type": "question",
+      "url": "https://web1.tcte.edu.tw/EXAM/115_4y/downloader.php?obj=MTE1LTR5LTAyLTEucGRm",
+      "localPath": "data/raw/115/power-machinery-professional-1/115-4y-02-1-question.pdf",
+      "sha256": "3C446A138373A332246DC9075751016849BB494871F01D5094E0E67F3B807431",
+      "status": "downloaded_pending_teacher_review"
+    },
+    {
+      "type": "standard_answer",
+      "url": "https://web1.tcte.edu.tw/EXAM/115_4y/downloader.php?obj=MTE1LTR5LTAyLTEtc3RhbmRhcmQucGRm",
+      "localPath": "data/raw/115/power-machinery-professional-1/115-4y-02-1-standard-answer.pdf",
+      "sha256": "6CC035DB443006AB217410B0608F6F4A7135C6568BDDB2B5F6EDD618F09CF7D2",
+      "status": "downloaded_pending_teacher_review"
+    }
+  ],
+  "notice": "官方 PDF 已下載保存；尚未自動擷取或發布題目，須由科任教師核對題幹、答案、頁碼與授權後再匯入學生題庫。"
+}

@@ -1,0 +1,7 @@
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import { getRequestUser } from "@/lib/api-auth";
+import { db } from "@/lib/db";
+import { calculateScore } from "@/lib/scoring";
+
+export async function POST(request:Request){const user=getRequestUser(request);if(!user||user.role!=="student")return NextResponse.json({error:"未授權"},{status:401});const p=z.object({attemptId:z.number().int().positive()}).safeParse(await request.json().catch(()=>({})));if(!p.success)return NextResponse.json({error:"資料不正確"},{status:400});const a=db.prepare("SELECT a.submitted_at,a.started_at,e.settings_json FROM attempts a JOIN exams e ON e.id=a.exam_id WHERE a.id=? AND a.student_id=? AND e.mode='practice'").get(p.data.attemptId,user.id) as {submitted_at:string|null;started_at:string;settings_json:string}|undefined;if(!a)return NextResponse.json({error:"找不到練習"},{status:404});if(a.submitted_at)return NextResponse.json({error:"此練習已完成"},{status:409});const total=(JSON.parse(a.settings_json).questionIds as number[]).length;const correct=(db.prepare("SELECT COUNT(*) AS count FROM responses WHERE attempt_id=? AND is_correct=1").get(p.data.attemptId) as {count:number}).count;const score=calculateScore(correct,total);db.prepare("UPDATE attempts SET submitted_at=CURRENT_TIMESTAMP,score=?,duration_sec=CAST((julianday('now')-julianday(started_at))*86400 AS INTEGER) WHERE id=?").run(score,p.data.attemptId);return NextResponse.json({score,correct,total});}

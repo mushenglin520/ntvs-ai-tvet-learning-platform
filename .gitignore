@@ -1,0 +1,13 @@
+node_modules/
+.next/
+coverage/
+playwright-report/
+test-results/
+.env.local
+data/app.db
+data/app.db-shm
+data/app.db-wal
+data/uploads/*
+!data/uploads/.gitkeep
+# 官方試題原始 PDF 不在 GitHub 重複散布；請用下載腳本自官方來源取得。
+data/raw/**/*.pdf

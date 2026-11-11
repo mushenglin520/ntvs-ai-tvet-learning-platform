@@ -1,0 +1,19 @@
+{
+  "school": "新北高工",
+  "group": "動力機械群",
+  "department": "汽車科",
+  "code": "automotive",
+  "subjects": [
+    {
+      "code": "power-machinery-professional-1",
+      "name": "專業科目（一）",
+      "scope": ["應用力學", "引擎原理", "底盤原理"]
+    }
+  ],
+  "curriculum": "108課綱",
+  "questionYears": [113, 114, 115],
+  "branding": {
+    "primary": "#0b2d4d",
+    "accent": "#12b8b0"
+  }
+}

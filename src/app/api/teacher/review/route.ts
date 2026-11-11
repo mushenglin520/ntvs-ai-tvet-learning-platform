@@ -1,0 +1,8 @@
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import { getRequestUser } from "@/lib/api-auth";
+import { db } from "@/lib/db";
+import { validateReview } from "@/lib/review";
+
+const schema=z.object({questionId:z.number().int().positive(),decision:z.string(),note:z.string()});
+export async function POST(request:Request){const user=getRequestUser(request);if(!user||user.role!=="teacher")return NextResponse.json({error:"僅限授權教師操作"},{status:403});const p=schema.safeParse(await request.json().catch(()=>({})));if(!p.success)return NextResponse.json({error:"審核資料不完整"},{status:400});let decision;try{decision=validateReview(p.data.decision,p.data.note)}catch(e){return NextResponse.json({error:(e as Error).message},{status:400})}const q=db.prepare("SELECT id,status,version FROM questions WHERE id=?").get(p.data.questionId) as {id:number;status:string;version:number}|undefined;if(!q)return NextResponse.json({error:"找不到題目"},{status:404});if(q.status!=="pending")return NextResponse.json({error:"此題已完成審核，請重新整理"},{status:409});const save=db.transaction(()=>{db.prepare("UPDATE questions SET status=? WHERE id=?").run(decision,q.id);db.prepare("INSERT INTO question_reviews (question_id,reviewer_id,decision,note,version) VALUES (?,?,?,?,?)").run(q.id,user.id,decision,p.data.note.trim(),q.version);db.prepare("INSERT INTO audit_logs (actor_id,action,target_type,target_id,metadata_json) VALUES (?,?,?,?,?)").run(user.id,"question.review","question",String(q.id),JSON.stringify({decision,note:p.data.note.trim(),version:q.version}));});save();return NextResponse.json({ok:true,status:decision});}
