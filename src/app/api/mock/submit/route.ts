@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getRequestUser } from "@/lib/api-auth";
-import { db } from "@/lib/db";
-import { calculateScore,isCorrectAnswer } from "@/lib/scoring";
+import { SESSION_COOKIE } from "@/lib/auth";
+import { callRpc, DataError, readSessionToken } from "@/lib/supabase";
 
 const schema=z.object({attemptId:z.number().int().positive(),answers:z.record(z.string(),z.enum(["A","B","C","D"]))});
-export async function POST(request:Request){const user=getRequestUser(request);if(!user||user.role!=="student")return NextResponse.json({error:"未授權"},{status:401});const p=schema.safeParse(await request.json().catch(()=>({})));if(!p.success)return NextResponse.json({error:"交卷資料不正確"},{status:400});const attempt=db.prepare("SELECT a.submitted_at,e.settings_json FROM attempts a JOIN exams e ON e.id=a.exam_id WHERE a.id=? AND a.student_id=? AND e.mode='mock'").get(p.data.attemptId,user.id) as {submitted_at:string|null;settings_json:string}|undefined;if(!attempt)return NextResponse.json({error:"找不到考試紀錄"},{status:404});if(attempt.submitted_at)return NextResponse.json({error:"此考試已交卷，不能重複提交"},{status:409});const ids=(JSON.parse(attempt.settings_json).questionIds as number[]);const placeholders=ids.map(()=>"?").join(",");const rows=db.prepare(`SELECT id,answer,explanation FROM questions WHERE status='approved' AND id IN (${placeholders})`).all(...ids) as {id:number;answer:string;explanation:string}[];const byId=new Map(rows.map(r=>[r.id,r]));let correct=0;const details=[] as Array<{questionId:number;selectedAnswer:string|null;correctAnswer:string;isCorrect:boolean;explanation:string}>;const insert=db.prepare("INSERT INTO responses (attempt_id,question_id,selected_answer,is_correct) VALUES (?,?,?,?)");const save=db.transaction(()=>{for(const id of ids){const q=byId.get(id);if(!q)continue;const selected=p.data.answers[String(id)]??null;const ok=selected?isCorrectAnswer(selected,q.answer):false;if(ok)correct++;if(selected)insert.run(p.data.attemptId,id,selected,ok?1:0);details.push({questionId:id,selectedAnswer:selected,correctAnswer:q.answer,isCorrect:ok,explanation:q.explanation});}const score=calculateScore(correct,ids.length);db.prepare("UPDATE attempts SET submitted_at=CURRENT_TIMESTAMP,score=?,duration_sec=CAST((julianday('now')-julianday(started_at))*86400 AS INTEGER) WHERE id=?").run(score,p.data.attemptId);return score;});const score=save();return NextResponse.json({score,correct,total:ids.length,details});}
+export async function POST(request:Request){
+  const user=await getRequestUser(request); if(!user||user.role!=="student") return NextResponse.json({error:"未授權"},{status:401});
+  const p=schema.safeParse(await request.json().catch(()=>({}))); if(!p.success) return NextResponse.json({error:"交卷資料不正確"},{status:400});
+  try {return NextResponse.json(await callRpc("submit_mock",{p_attempt_id:p.data.attemptId,p_answers:p.data.answers},readSessionToken(request,SESSION_COOKIE)));}
+  catch(e){return NextResponse.json({error:e instanceof DataError?e.message:"無法提交考試"},{status:400});}
+}

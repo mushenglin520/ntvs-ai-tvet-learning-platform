@@ -1,4 +1,4 @@
-$ErrorActionPreference = "Stop"
+﻿$ErrorActionPreference = "Stop"
 
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
 $RawDirectory = Join-Path $ProjectRoot "data\raw\115\power-machinery-professional-1"

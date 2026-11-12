@@ -1,32 +1,39 @@
-# 新北高工 AI 統測自主學習平台（第一階段本機 MVP）
+# 新北高工 AI 統測自主學習平台
 
-動力機械群／汽車科示範站，完成教師審題、學生雙題庫、自主練習、模擬考試及學習診斷。全站使用繁體中文、RWD 版面，無需 Supabase 或付費 AI 金鑰即可展示。
+第一階段雲端示範版，採 Next.js 16、Vercel 與 Supabase PostgreSQL。涵蓋教師審題、學生雙題庫、自主練習、模擬考試、成績紀錄與學習診斷，並提供繁體中文 RWD 介面。
+
+## 正式架構
+
+- 網站：Next.js App Router，部署於 Vercel。
+- 資料庫：Supabase PostgreSQL（東京區）。
+- 權限：HttpOnly 工作階段 Cookie、角色檢查 RPC、所有 public 資料表 RLS、Data API 表格零直接授權。
+- 檔案：教師上傳 PDF／CSV 儲存於 Supabase Storage 私有 bucket。
+- 稽核：教師審題與來源匯入均寫入 audit_logs。
+- 金鑰：網站只使用 publishable key，不使用 service_role／secret key。
 
 ## 重要資料聲明
 
-- 本機的 `data/raw/115/power-machinery-professional-1/` 可保存官方試題與標準答案 PDF；GitHub repository 為避免重複散布整份試題，不提交 PDF 二進位檔。來源與雜湊記錄於 `data/source-manifest.json`。
-- 官方 PDF 目前狀態為「待解析／待教師確認」，沒有直接發布到學生題庫。
-- 網站可作答題目共 16 題，全部為虛構示範題；另有 2 題 AI 待審示範題。
+- 115 年動力機械群專業科目（一）官方試題與標準答案來源、檔名及 SHA-256 已登錄。
+- 官方 PDF 仍是「待解析／待教師確認」狀態，未直接發布到學生題庫。
+- 可作答題目為虛構教學示範題，並以「歷屆題型示範」或「AI 模擬題」清楚標示，不宣稱是官方原題。
+- GitHub repository 不提交官方 PDF 二進位檔；可使用 `scripts/download-official-files.ps1` 自官方來源下載並核對雜湊。
 
-如需取得官方 PDF，請從 repository 根目錄執行：
+## 本機啟動
+
+1. 複製環境變數：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\download-official-files.ps1
+Copy-Item .env.example .env.local
 ```
 
-腳本會從技專校院入學測驗中心公布頁下載，並比對已記錄的 SHA-256；下載成功仍不代表已完成題目與答案的人工審核。
-
-## 快速啟動（本專案位於 Google 雲端硬碟時建議使用）
-
-在 PowerShell 執行：
+2. 在 `.env.local` 填入 Supabase 專案的 URL 與 publishable key。
+3. 專案位於 Google 雲端硬碟時，建議執行：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\run-local.ps1
 ```
 
-腳本會將原始碼複製到 `%LOCALAPPDATA%\CodexRuns\ai-tvet-learning-platform`，在本機安裝相依套件並啟動 `http://127.0.0.1:3000`。按 `Ctrl+C` 可停止網站。
-
-若專案已位於一般本機資料夾，可使用標準指令：
+一般本機資料夾可直接執行：
 
 ```powershell
 npm install
@@ -41,47 +48,45 @@ npm run dev
 | 教師 | `teacher01` | `Teach115!` |
 | 管理員 | `admin01` | `Admin115!` |
 
-以上皆為虛構資料。密碼以加鹽 scrypt 雜湊保存；登入後使用 HttpOnly Cookie。
+以上皆為虛構資料。密碼在 PostgreSQL 以 bcrypt 雜湊保存。
 
 ## 測試與建置
 
 ```powershell
-npm run test       # 單元＋資料整合測試
-npm run test:e2e   # 重建示範 DB 後執行 Chrome 端到端測試
+npm run test       # 8 項單元與 Supabase 整合測試
+npm run test:e2e   # 3 項 Chrome 端到端流程
 npm run build      # 正式建置與 TypeScript 檢查
 ```
 
-## 教師操作
+端到端測試會實際建立學生作答紀錄，教師流程也會審核一題待審示範題。
 
-1. 以教師帳號登入，從「教師審題」檢查待審 AI 題。
-2. 輸入審核備註，選擇通過、退回修改或不採用。
-3. 到「來源匯入」檢視官方文件，或上傳 PDF／CSV；CSV 題目一律先進待審。
-4. 到「學習分析」查看示範學生的單元正確率。
+## Supabase 遷移
 
-CSV 欄位：`stem, option_a, option_b, option_c, option_d, answer, explanation, unit, difficulty, source_type`。
+資料庫版本位於 `supabase/migrations/`：
 
-## 學生操作
+- 初始結構、示範資料、RPC 與 Storage。
+- 登入／角色檢查修正。
+- deny-all RLS 政策與外鍵索引。
+- RPC 執行權限收斂。
 
-1. 以學生帳號登入，選擇「自主練習」或「模擬考試」。
-2. 自主練習可選題庫、單元、難度及題數，每題立即取得回饋。
-3. 模擬考作答期間不顯示答案，交卷後由伺服器統一評分。
-4. 在「成績診斷」查看歷次紀錄、常錯知識點與補強建議。
+所有 DDL 變更都應新增 migration，不直接修改已套用的歷史檔。
 
 ## 教學應用方式
 
-- 課前：教師先審核 5–10 題，建立本週可用題組。
-- 課中：學生完成 5 題即時回饋練習，兩人一組口述解題原理。
-- 課後：以 3–5 題模擬考驗證，再依診斷結果安排補強題。
+- 課前：教師審核 5–10 題，建立本週可用題組。
+- 課中：學生完成 5 題即時回饋練習，再以兩人一組口述解題原理。
+- 課後：以 3–5 題模擬考驗證，依「常錯知識點」安排補強。
+- 評量：練習完成度 30%、模擬考 30%、錯題反思 25%、同儕解說 15%。
 
-## 學生實作建議與評量
+## 學生實作建議
 
-- 基礎題：完成指定單元 5 題練習，正確率達 80%。
-- 進階題：針對一題錯題寫出「錯因、正確原理、生活／實務例子」。
-- 挑戰題：比較歷屆題型示範與 AI 模擬題的題幹品質，提出可審核的修改理由。
-- 評量可採：練習完成度 30%、模擬考 30%、錯題反思 25%、同儕解說 15%。
+- 基礎：完成指定單元 5 題練習，正確率達 80%。
+- 進階：針對一題錯題寫出「錯因、正確原理、實務例子」。
+- 挑戰：比較歷屆題型示範與 AI 模擬題，提出可被教師審核的修題理由。
 
 ## 延伸任務
 
-1. 經科任教師確認後，建立官方 PDF 的題號—答案核對表。
-2. 連接 Supabase Auth／PostgreSQL，完成 RLS 與正式班級權限測試。
-3. 把 `config/department.json` 抽成初始化精靈，複製到其他科別。
+1. 由科任教師建立官方 PDF 的題號—答案核對表，再逐批發布。
+2. 第二階段改用 Supabase Auth，加入正式教師邀請、學生班級與密碼重設。
+3. 新增題目版本差異、班級匯入與診斷報表匯出。
+4. 將科別設定抽成初始化精靈，複製至其他技職群科。

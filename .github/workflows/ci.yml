@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+env:
+  NEXT_PUBLIC_SUPABASE_URL: https://ztpcngiexlnasdohpflv.supabase.co
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_4LH5ny2WQo8EjcGHe9Urdw_KXh2C1tS
+
 jobs:
   test-and-build:
     runs-on: ubuntu-latest

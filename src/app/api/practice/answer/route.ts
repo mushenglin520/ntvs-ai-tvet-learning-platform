@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getRequestUser } from "@/lib/api-auth";
-import { db } from "@/lib/db";
-import { isCorrectAnswer } from "@/lib/scoring";
+import { SESSION_COOKIE } from "@/lib/auth";
+import { callRpc, DataError, readSessionToken } from "@/lib/supabase";
 
 const schema=z.object({attemptId:z.number().int().positive(),questionId:z.number().int().positive(),selectedAnswer:z.enum(["A","B","C","D"])});
-export async function POST(request:Request){const user=getRequestUser(request);if(!user||user.role!=="student")return NextResponse.json({error:"未授權"},{status:401});const p=schema.safeParse(await request.json().catch(()=>({})));if(!p.success)return NextResponse.json({error:"作答資料不正確"},{status:400});const attempt=db.prepare("SELECT a.id,a.submitted_at,e.mode,e.settings_json FROM attempts a JOIN exams e ON e.id=a.exam_id WHERE a.id=? AND a.student_id=?").get(p.data.attemptId,user.id) as {submitted_at:string|null;mode:string;settings_json:string}|undefined;if(!attempt||attempt.mode!=="practice")return NextResponse.json({error:"找不到練習紀錄"},{status:404});if(attempt.submitted_at)return NextResponse.json({error:"此練習已完成"},{status:409});const ids=JSON.parse(attempt.settings_json).questionIds as number[];if(!ids.includes(p.data.questionId))return NextResponse.json({error:"題目不屬於本次練習"},{status:400});const q=db.prepare("SELECT q.answer,q.explanation,u.unit_name AS unitName FROM questions q JOIN units u ON u.id=q.unit_id WHERE q.id=? AND q.status='approved'").get(p.data.questionId) as {answer:string;explanation:string;unitName:string}|undefined;if(!q)return NextResponse.json({error:"題目尚未發布"},{status:404});const correct=isCorrectAnswer(p.data.selectedAnswer,q.answer);db.prepare("INSERT OR REPLACE INTO responses (attempt_id,question_id,selected_answer,is_correct,answered_at) VALUES (?,?,?,?,CURRENT_TIMESTAMP)").run(p.data.attemptId,p.data.questionId,p.data.selectedAnswer,correct?1:0);return NextResponse.json({correct,correctAnswer:q.answer,explanation:q.explanation,unitName:q.unitName});}
+export async function POST(request:Request){
+  const user=await getRequestUser(request); if(!user||user.role!=="student") return NextResponse.json({error:"未授權"},{status:401});
+  const p=schema.safeParse(await request.json().catch(()=>({}))); if(!p.success) return NextResponse.json({error:"作答資料不正確"},{status:400});
+  try {return NextResponse.json(await callRpc("answer_practice",{p_attempt_id:p.data.attemptId,p_question_id:p.data.questionId,p_selected_answer:p.data.selectedAnswer},readSessionToken(request,SESSION_COOKIE)));}
+  catch(e){return NextResponse.json({error:e instanceof DataError?e.message:"無法儲存答案"},{status:400});}
+}
