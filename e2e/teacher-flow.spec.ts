@@ -1,5 +1,17 @@
 import { expect,test } from "@playwright/test";
 
+test("教師可查看學習分析",async({page})=>{
+  await page.goto("/login");
+  await page.getByLabel("帳號／學號").fill("teacher01");
+  await page.getByLabel("密碼").fill("Teach115!");
+  await page.getByRole("button",{name:"登入",exact:true}).click();
+  await page.getByRole("link",{name:"學習分析",exact:true}).click();
+  await expect(page.getByRole("heading",{name:"學習成效分析"})).toBeVisible();
+  await expect(page.getByRole("heading",{name:"知識點正確率"})).toBeVisible();
+  await expect(page.getByRole("heading",{name:"學生概況"})).toBeVisible();
+  await expect(page.getByRole("cell",{name:"陳同學（示範）"})).toBeVisible();
+});
+
 test("教師可審核待審題並留下備註",async({page})=>{
   await page.goto("/login");
   await page.getByLabel("帳號／學號").fill("teacher01");
